@@ -1,0 +1,239 @@
+import 'server-only'
+import { cache }            from 'react'
+import { cookies, headers } from 'next/headers'
+import type {
+  FrappeDoc, FrappeEnvelope, FrappeParams,
+  FrappeFetchOptions, GetListArgs, BootData,
+} from '../types'
+
+// ─── URL Resolution ───────────────────────────────────────────────────────────
+// Priority order:
+//   1. FRAPPE_INTERNAL_URL  → Docker  (http://frappe-backend:8000)
+//   2. FRAPPE_URL           → Explicit override
+//   3. http://127.0.0.1:8000 → Local bench fallback (no env var needed)
+
+function resolveBaseUrl(): string {
+  return (
+    process.env.FRAPPE_INTERNAL_URL ??
+    process.env.FRAPPE_URL          ??
+    'http://127.0.0.1:8000'
+  )
+}
+
+// ─── Cookie Forwarding ────────────────────────────────────────────────────────
+// Reads the INCOMING request's cookies (via Next.js 15 async cookies())
+// and forwards them to Frappe to maintain the user's session server-side.
+
+async function buildSessionHeaders(): Promise<Record<string, string>> {
+  try {
+    const jar  = await cookies()
+    const sid  = jar.get('sid')?.value
+    const csrf = jar.get('csrf_token')?.value
+    const out: Record<string, string> = {}
+    if (sid && sid !== 'Guest') out['Cookie']              = `sid=${sid}`
+    if (csrf)                   out['X-Frappe-CSRF-Token'] = csrf
+    return out
+  } catch {
+    // Outside request context (build time, cron jobs) — skip session
+    return {}
+  }
+}
+
+// ─── API Key Auth ─────────────────────────────────────────────────────────────
+// Used for server-side mutations. Bypasses CSRF entirely.
+// Set FRAPPE_API_KEY + FRAPPE_API_SECRET in .env.local
+
+function buildApiKeyHeaders(): Record<string, string> | null {
+  const key    = process.env.FRAPPE_API_KEY
+  const secret = process.env.FRAPPE_API_SECRET
+  if (!key || !secret) return null
+  // Frappe token format: "token api_key:api_secret"
+  return { 'Authorization': `token ${key}:${secret}` }
+}
+
+// ─── Response Handler ─────────────────────────────────────────────────────────
+
+async function handleResponse<T>(res: Response, method: string): Promise<T> {
+  if (res.status === 403) throw new FrappeAuthError(method)
+  if (res.status === 404) throw new FrappeNotFoundError(method)
+  if (!res.ok) {
+    let details: unknown = {}
+    try { details = await res.json() } catch { /* noop */ }
+    throw new FrappeApiError(res.status, method, details)
+  }
+  const envelope = await res.json() as FrappeEnvelope<T>
+  if (envelope.exc_type) throw new FrappeApiError(200, method, envelope)
+  return envelope.message
+}
+
+// ─── frappeGet ────────────────────────────────────────────────────────────────
+// Use inside Server Components, generateStaticParams, generateMetadata.
+// Pass options.next for ISR: { revalidate: 60 } or { tags: ['MyDoctype'] }
+
+export async function frappeGet<T>(
+  method:  string,
+  params?: FrappeParams,
+  options: FrappeFetchOptions = {},
+): Promise<T> {
+  const base    = resolveBaseUrl()
+  const url     = new URL(`/api/method/${method}`, base)
+  const session = options.skipSession ? {} : await buildSessionHeaders()
+
+  if (params) {
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== null && v !== undefined) url.searchParams.set(k, String(v))
+    })
+  }
+
+  const res = await fetch(url.toString(), {
+    method:  'GET',
+    headers: { 'Content-Type': 'application/json', ...session, ...options.headers },
+    next:    options.next,
+  })
+
+  return handleResponse<T>(res, method)
+}
+
+// ─── frappePost ───────────────────────────────────────────────────────────────
+// Prefers API key for mutations (no CSRF issue server-to-server).
+// Falls back to session cookie if API key not configured.
+
+export async function frappePost<T>(
+  method:  string,
+  body?:   FrappeParams,
+  options: FrappeFetchOptions = {},
+): Promise<T> {
+  const base    = resolveBaseUrl()
+  const apiKey  = buildApiKeyHeaders()
+  const session = options.skipSession ? {} : await buildSessionHeaders()
+  const auth    = apiKey ?? session
+
+  const res = await fetch(`${base}/api/method/${method}`, {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json', ...auth, ...options.headers },
+    body:    JSON.stringify(body ?? {}),
+    cache:   'no-store',
+  })
+
+  return handleResponse<T>(res, method)
+}
+
+// ─── Document Helpers ─────────────────────────────────────────────────────────
+
+export async function getDoc<T extends FrappeDoc>(
+  doctype:  string,
+  name:     string,
+  options?: FrappeFetchOptions,
+): Promise<T> {
+  return frappeGet<T>(
+    'frappe.client.get',
+    { doctype, name },
+    { next: { tags: [`${doctype}::${name}`] }, ...options },
+  )
+}
+
+export async function getList<T extends Partial<FrappeDoc>>(
+  doctype:  string,
+  args:     GetListArgs = {},
+  options?: FrappeFetchOptions,
+): Promise<T[]> {
+  const {
+    fields      = ['name', 'modified'],
+    filters     = [],
+    or_filters  = [],
+    limit       = 20,
+    limit_start = 0,
+    order_by    = 'modified desc',
+  } = args
+
+  return frappeGet<T[]>(
+    'frappe.client.get_list',
+    {
+      doctype,
+      fields:            JSON.stringify(fields),
+      filters:           JSON.stringify(filters),
+      or_filters:        JSON.stringify(or_filters),
+      limit_page_length: limit,
+      limit_start,
+      order_by,
+    },
+    { next: { tags: [doctype] }, ...options },
+  )
+}
+
+export async function getCount(
+  doctype:  string,
+  filters:  [string, string, string, unknown][] = [],
+  options?: FrappeFetchOptions,
+): Promise<number> {
+  return frappeGet<number>(
+    'frappe.client.get_count',
+    { doctype, filters: JSON.stringify(filters) },
+    options,
+  )
+}
+
+// ─── Boot Data ────────────────────────────────────────────────────────────────
+// React.cache() memoizes fetchCsrfToken per request.
+// 50 Server Components calling getFrappeBootData() = exactly 1 Frappe call.
+// The user string comes from middleware headers — zero extra network call.
+
+export const fetchCsrfToken = cache(async (): Promise<string> => {
+  const base = resolveBaseUrl()
+  try {
+    const jar = await cookies()
+    const sid = jar.get('sid')?.value
+    if (!sid || sid === 'Guest') return 'fetch'
+
+    const res = await fetch(
+      `${base}/api/method/frappe.sessions.get_csrf_token`,
+      { headers: { Cookie: `sid=${sid}` }, cache: 'no-store' },
+    )
+    if (!res.ok) return 'fetch'
+    const data = await res.json() as { csrf_token?: string }
+    return data.csrf_token ?? 'fetch'
+  } catch {
+    return 'fetch'
+  }
+})
+
+export async function getFrappeBootData(): Promise<BootData> {
+  const reqHeaders = await headers()
+  // x-frappe-user is injected by middleware after session verification.
+  // Reading it here costs zero Frappe network calls.
+  const user      = reqHeaders.get('x-frappe-user') ?? null
+  const csrfToken = await fetchCsrfToken()
+
+  return {
+    csrfToken,
+    user,
+    siteName: process.env.FRAPPE_SITE_NAME ?? '',
+  }
+}
+
+// ─── Error Types ──────────────────────────────────────────────────────────────
+
+export class FrappeApiError extends Error {
+  constructor(
+    public readonly status:  number,
+    public readonly method:  string,
+    public readonly details: unknown,
+  ) {
+    super(`[FrappeNext] ${status} on ${method}`)
+    this.name = 'FrappeApiError'
+  }
+}
+
+export class FrappeAuthError extends FrappeApiError {
+  constructor(method: string) {
+    super(403, method, 'Session expired or insufficient permissions')
+    this.name = 'FrappeAuthError'
+  }
+}
+
+export class FrappeNotFoundError extends FrappeApiError {
+  constructor(method: string) {
+    super(404, method, 'Resource not found')
+    this.name = 'FrappeNotFoundError'
+  }
+}

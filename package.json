@@ -1,0 +1,11 @@
+{
+  "name": "frappe-next-sdk",
+  "private": true,
+  "scripts": {
+    "type-check": "pnpm -r --filter './packages/*' exec tsc --noEmit",
+    "dev":        "pnpm --filter frappe-next-basic-example dev"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0"
+  }
+}

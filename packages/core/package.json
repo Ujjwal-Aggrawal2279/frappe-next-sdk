@@ -1,0 +1,39 @@
+{
+  "name": "@frappe-next/core",
+  "version": "0.1.0",
+  "description": "Next.js App Router SDK for Frappe Framework — SSR, Server Actions, Middleware",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Ujjwal-Aggrawal2279/frappe-next-sdk.git",
+    "directory": "packages/core"
+  },
+  "homepage": "https://github.com/Ujjwal-Aggrawal2279/frappe-next-sdk#readme",
+  "bugs": {
+    "url": "https://github.com/Ujjwal-Aggrawal2279/frappe-next-sdk/issues"
+  },
+  "keywords": [
+    "frappe", "erpnext", "nextjs", "next.js", "app-router",
+    "ssr", "server-components", "server-actions", "typescript"
+  ],
+  "exports": {
+    "./types":      { "default": "./src/types/index.ts" },
+    "./server":     { "default": "./src/server/index.ts" },
+    "./actions":    { "default": "./src/server/actions.ts" },
+    "./middleware": { "default": "./src/middleware/index.ts" },
+    "./client":     { "default": "./src/client/index.ts" },
+    "./components": { "default": "./src/components/FrappeProvider.tsx" }
+  },
+  "files": ["src", "README.md", "LICENSE"],
+  "peerDependencies": {
+    "next":      ">=15.0.0",
+    "react":     ">=19.0.0",
+    "react-dom": ">=19.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "next":         "^16.0.0",
+    "server-only":  "^0.0.1",
+    "typescript":   "^5.5.0"
+  }
+}

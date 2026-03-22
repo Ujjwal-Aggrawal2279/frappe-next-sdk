@@ -1,0 +1,24 @@
+{
+  "name": "frappe-next-basic-example",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev":        "next dev",
+    "build":      "next build",
+    "start":      "next start",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@frappe-next/core": "workspace:*",
+    "next":              "latest",
+    "react":             "latest",
+    "react-dom":         "latest",
+    "server-only":       "latest"
+  },
+  "devDependencies": {
+    "@types/node":     "^20",
+    "@types/react":    "^19",
+    "@types/react-dom":"^19",
+    "typescript":      "^5"
+  }
+}
