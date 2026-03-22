@@ -85,11 +85,15 @@ export async function frappeGet<T>(
     })
   }
 
-  const res = await fetch(url.toString(), {
+  // `next` is a Next.js-specific fetch extension (ISR/cache tags).
+  // Cast through unknown to avoid TS2769 on standard RequestInit.
+  const init = {
     method:  'GET',
     headers: { 'Content-Type': 'application/json', ...session, ...options.headers },
     next:    options.next,
-  })
+  } as unknown as RequestInit
+
+  const res = await fetch(url.toString(), init)
 
   return handleResponse<T>(res, method)
 }

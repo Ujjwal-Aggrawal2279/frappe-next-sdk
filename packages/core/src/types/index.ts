@@ -30,8 +30,15 @@ export interface GetListArgs {
   order_by?:    string
 }
 
+// Next.js extends fetch() with a `next` property for ISR/cache control.
+// We define it ourselves so this package doesn't depend on Next.js types.
+export interface NextCacheConfig {
+  revalidate?: number | false
+  tags?:       string[]
+}
+
 export interface FrappeFetchOptions {
-  next?:        NextFetchRequestConfig
+  next?:        NextCacheConfig
   headers?:     Record<string, string>
   skipSession?: boolean
 }
