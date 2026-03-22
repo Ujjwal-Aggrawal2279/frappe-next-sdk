@@ -124,7 +124,7 @@ export async function frappePost<T>(
 
 // ─── Document Helpers ─────────────────────────────────────────────────────────
 
-export async function getDoc<T extends FrappeDoc>(
+export async function getDoc<T extends Record<string, unknown>>(
   doctype:  string,
   name:     string,
   options?: FrappeFetchOptions,
@@ -136,7 +136,7 @@ export async function getDoc<T extends FrappeDoc>(
   )
 }
 
-export async function getList<T extends Partial<FrappeDoc>>(
+export async function getList<T extends Record<string, unknown>>(
   doctype:  string,
   args:     GetListArgs = {},
   options?: FrappeFetchOptions,
