@@ -21,10 +21,14 @@ export interface FrappeDoc {
 
 export type FrappeParams = Record<string, string | number | boolean | null | undefined>
 
+// Frappe filter: [fieldname, operator, value]
+// Value can be string, number, array (for "in"/"not in"), etc.
+export type FrappeFilter = [string, string, unknown]
+
 export interface GetListArgs {
   fields?:      string[]
-  filters?:     [string, string, string, unknown][]
-  or_filters?:  [string, string, string, unknown][]
+  filters?:     FrappeFilter[]
+  or_filters?:  FrappeFilter[]
   limit?:       number
   limit_start?: number
   order_by?:    string

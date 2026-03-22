@@ -3,7 +3,7 @@ import { cache }            from 'react'
 import { cookies, headers } from 'next/headers'
 import type {
   FrappeDoc, FrappeEnvelope, FrappeParams,
-  FrappeFetchOptions, GetListArgs, BootData,
+  FrappeFetchOptions, GetListArgs, BootData, FrappeFilter,
 } from '../types'
 
 // ─── URL Resolution ───────────────────────────────────────────────────────────
@@ -124,7 +124,7 @@ export async function frappePost<T>(
 
 // ─── Document Helpers ─────────────────────────────────────────────────────────
 
-export async function getDoc<T extends Record<string, unknown>>(
+export async function getDoc<T>(
   doctype:  string,
   name:     string,
   options?: FrappeFetchOptions,
@@ -136,7 +136,7 @@ export async function getDoc<T extends Record<string, unknown>>(
   )
 }
 
-export async function getList<T extends Record<string, unknown>>(
+export async function getList<T>(
   doctype:  string,
   args:     GetListArgs = {},
   options?: FrappeFetchOptions,
@@ -167,7 +167,7 @@ export async function getList<T extends Record<string, unknown>>(
 
 export async function getCount(
   doctype:  string,
-  filters:  [string, string, string, unknown][] = [],
+  filters:  FrappeFilter[] = [],
   options?: FrappeFetchOptions,
 ): Promise<number> {
   return frappeGet<number>(
