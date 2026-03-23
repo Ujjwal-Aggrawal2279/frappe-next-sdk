@@ -13,27 +13,70 @@
     "url": "https://github.com/Ujjwal-Aggrawal2279/frappe-next-sdk/issues"
   },
   "keywords": [
-    "frappe", "erpnext", "nextjs", "next.js", "app-router",
-    "ssr", "server-components", "server-actions", "typescript"
+    "frappe",
+    "erpnext",
+    "nextjs",
+    "next.js",
+    "app-router",
+    "ssr",
+    "server-components",
+    "server-actions",
+    "typescript"
   ],
-  "exports": {
-    "./types":      { "default": "./src/types/index.ts" },
-    "./server":     { "default": "./src/server/index.ts" },
-    "./actions":    { "default": "./src/server/actions.ts" },
-    "./middleware": { "default": "./src/middleware/index.ts" },
-    "./client":     { "default": "./src/client/index.ts" },
-    "./components": { "default": "./src/components/FrappeProvider.tsx" }
+  "scripts": {
+    "build": "rm -rf dist && tsup && node scripts/inject-directives.mjs",
+    "dev": "tsup --watch",
+    "type-check": "tsc --noEmit",
+    "prepublishOnly": "pnpm build"
   },
-  "files": ["src", "README.md", "LICENSE"],
+  "exports": {
+    "./types": {
+      "types": "./dist/types/index.d.ts",
+      "import": "./dist/types/index.js",
+      "require": "./dist/types/index.cjs"
+    },
+    "./server": {
+      "types": "./dist/server/index.d.ts",
+      "import": "./dist/server/index.js",
+      "require": "./dist/server/index.cjs"
+    },
+    "./actions": {
+      "types": "./dist/server/actions.d.ts",
+      "import": "./dist/server/actions.js",
+      "require": "./dist/server/actions.cjs"
+    },
+    "./middleware": {
+      "types": "./dist/middleware/index.d.ts",
+      "import": "./dist/middleware/index.js",
+      "require": "./dist/middleware/index.cjs"
+    },
+    "./client": {
+      "types": "./dist/client/index.d.ts",
+      "import": "./dist/client/index.js",
+      "require": "./dist/client/index.cjs"
+    },
+    "./components": {
+      "types": "./dist/components/index.d.ts",
+      "import": "./dist/components/index.js",
+      "require": "./dist/components/index.cjs"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "peerDependencies": {
-    "next":      ">=15.0.0",
-    "react":     ">=19.0.0",
+    "next": ">=15.0.0",
+    "react": ">=19.0.0",
     "react-dom": ">=19.0.0"
   },
   "devDependencies": {
+    "@types/node": "^20.19.37",
     "@types/react": "^19.0.0",
-    "next":         "^16.0.0",
-    "server-only":  "^0.0.1",
-    "typescript":   "^5.5.0"
+    "next": "^16.0.0",
+    "server-only": "^0.0.1",
+    "tsup": "^8.5.1",
+    "typescript": "^5.5.0"
   }
 }
