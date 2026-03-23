@@ -38,6 +38,11 @@ export function createFrappeAuthMiddleware(cfg: FrappeMiddlewareConfig = {}) {
     process.env.FRAPPE_URL          ??
     'http://127.0.0.1:8000'
 
+  const siteName =
+    process.env.FRAPPE_SITE_NAME ??
+    process.env.NEXT_PUBLIC_FRAPPE_SITE ??
+    'site1.localhost'
+
   const skip = [loginPath, ...ALWAYS_SKIP, ...publicPaths]
 
   return async function middleware(req: NextRequest): Promise<NextResponse> {
@@ -55,7 +60,7 @@ export function createFrappeAuthMiddleware(cfg: FrappeMiddlewareConfig = {}) {
     }
 
     // ── 3. Verify session against Frappe ──────────────────────────────────
-    const user = await verifySession(sid, frappeUrl, sessionTimeoutMs)
+    const user = await verifySession(sid, frappeUrl, siteName, sessionTimeoutMs)
 
     if (!user) {
       const res = loginRedirect(req, loginPath, 'session_invalid')
@@ -79,6 +84,7 @@ export function createFrappeAuthMiddleware(cfg: FrappeMiddlewareConfig = {}) {
 async function verifySession(
   sid:       string,
   frappeUrl: string,
+  siteName:  string,
   timeoutMs: number,
 ): Promise<string | null> {
   const ctrl  = new AbortController()
@@ -90,8 +96,9 @@ async function verifySession(
       {
         method:  'GET',
         headers: {
-          Cookie: `sid=${sid}`,
-          Accept: 'application/json',
+          Cookie:                `sid=${sid}`,
+          Accept:                'application/json',
+          'X-Frappe-Site-Name': siteName,
         },
         cache:  'no-store',
         signal: ctrl.signal,
