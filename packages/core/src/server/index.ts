@@ -223,11 +223,14 @@ export async function getCount(
 //   revalidateList('Item')              // invalidates getList cache for Item list
 
 export function revalidateDoc(doctype: string, name: string): void {
-  revalidateTag(`${doctype}::${name}`)
+  // Next.js 16 requires a second `profile` arg (CacheLifeConfig). Pass an
+  // empty object to use the default cache-life profile — same behaviour as
+  // Next.js 15's single-argument call.
+  revalidateTag(`${doctype}::${name}`, {})
 }
 
 export function revalidateList(doctype: string): void {
-  revalidateTag(doctype)
+  revalidateTag(doctype, {})
 }
 
 // ─── Boot Data ────────────────────────────────────────────────────────────────
