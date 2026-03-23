@@ -94,6 +94,44 @@ export async function updateDoc<T extends Record<string, unknown>>(
   }
 }
 
+export async function submitDoc(
+  doctype: string,
+  name:    string,
+): Promise<ActionResult<{ name: string; docstatus: 1 }>> {
+  const base = resolveBaseUrl()
+  try {
+    const res = await fetch(`${base}/api/method/frappe.client.submit`, {
+      method:  'POST',
+      headers: buildApiKeyHeaders(),
+      body:    JSON.stringify({ doc: { doctype, name, docstatus: 1 } }),
+    })
+    if (!res.ok) return { ok: false, error: await parseError(res), status: res.status }
+    const { message } = await res.json() as { message: { name: string; docstatus: 1 } }
+    return { ok: true, data: message }
+  } catch (e) {
+    return { ok: false, error: String(e) }
+  }
+}
+
+export async function cancelDoc(
+  doctype: string,
+  name:    string,
+): Promise<ActionResult<{ name: string; docstatus: 2 }>> {
+  const base = resolveBaseUrl()
+  try {
+    const res = await fetch(`${base}/api/method/frappe.client.cancel`, {
+      method:  'POST',
+      headers: buildApiKeyHeaders(),
+      body:    JSON.stringify({ doctype, name }),
+    })
+    if (!res.ok) return { ok: false, error: await parseError(res), status: res.status }
+    const { message } = await res.json() as { message: { name: string; docstatus: 2 } }
+    return { ok: true, data: message }
+  } catch (e) {
+    return { ok: false, error: String(e) }
+  }
+}
+
 export async function deleteDoc(
   doctype: string,
   name:    string,

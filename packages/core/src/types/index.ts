@@ -21,9 +21,21 @@ export interface FrappeDoc {
 
 export type FrappeParams = Record<string, string | number | boolean | null | undefined>
 
+// ─── Typed filter operators ────────────────────────────────────────────────────
+// Exhaustive list of operators Frappe's query engine accepts.
+// Using a typed operator catches typos at compile time ("==" instead of "=").
+export type FrappeOperator =
+  | '=' | '!=' | '<' | '>' | '<=' | '>='
+  | 'like' | 'not like'
+  | 'in' | 'not in'
+  | 'between'
+  | 'is' | 'is not'
+  | 'ancestors of' | 'descendants of'
+  | 'not ancestors of' | 'not descendants of'
+  | 'timespan'
+
 // Frappe filter: [fieldname, operator, value]
-// Value can be string, number, array (for "in"/"not in"), etc.
-export type FrappeFilter = [string, string, unknown]
+export type FrappeFilter = [string, FrappeOperator, unknown]
 
 export interface GetListArgs {
   fields?:      readonly string[]
