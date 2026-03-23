@@ -53,6 +53,33 @@ export async function frappeClientPost<T>(
   return data.message
 }
 
+// ─── frappeLogin ──────────────────────────────────────────────────────────────
+// Dedicated login — returns the full Frappe response body, not just .message,
+// because login includes home_page and full_name alongside the message string.
+
+export interface FrappeLoginResponse {
+  message:   string        // "Logged In" | "No App" etc.
+  home_page?: string       // e.g. "/me", "/" — use for post-login redirect
+  full_name?: string
+}
+
+export async function frappeLogin(
+  usr: string,
+  pwd: string,
+): Promise<FrappeLoginResponse> {
+  const res = await fetch('/api/method/login', {
+    method:      'POST',
+    credentials: 'include',
+    headers: {
+      'Content-Type':        'application/json',
+      'X-Frappe-CSRF-Token': readCsrfToken(),
+    },
+    body: JSON.stringify({ usr, pwd }),
+  })
+  if (!res.ok) throw new Error(`Frappe ${res.status}: login`)
+  return res.json() as Promise<FrappeLoginResponse>
+}
+
 // ─── useFrappeRouter ──────────────────────────────────────────────────────────
 // Smart router that automatically decides between Next.js client-side navigation
 // and full-page navigation for Frappe-owned paths (/app, /files, etc.).
