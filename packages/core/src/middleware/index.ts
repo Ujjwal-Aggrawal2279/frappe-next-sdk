@@ -53,6 +53,16 @@ export function createFrappeAuthMiddleware(cfg: FrappeMiddlewareConfig = {}) {
       return NextResponse.next()
     }
 
+    // ── 1b. Root-level Frappe ?cmd= params (e.g. /?cmd=web_logout) ────────
+    // The catch-all [...frappe] requires at least one path segment, so root
+    // Frappe commands never reach it. Rewrite to /api/?cmd=... which nginx
+    // (prod) or the dev proxy routes directly to Frappe.
+    if (pathname === '/' && req.nextUrl.searchParams.has('cmd')) {
+      const target = req.nextUrl.clone()
+      target.pathname = '/api/'
+      return NextResponse.redirect(target)
+    }
+
     // ── 2. No session cookie → instant redirect, no Frappe call ──────────
     const sid = req.cookies.get('sid')?.value
     if (!sid || sid === 'Guest') {
