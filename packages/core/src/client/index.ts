@@ -66,7 +66,10 @@ export async function frappeClientPost<T>(
 //   toDoc('Sales Order', 'SO-0001') → /app/sales-order/SO-0001
 
 // Paths owned by Frappe — anything else is handled by Next.js
-const FRAPPE_PATHS = ['/app', '/api', '/assets', '/files', '/private']
+const FRAPPE_PATHS = [
+  '/app', '/api', '/assets', '/files', '/private',
+  '/me', '/update-password', '/print', '/list', '/form', '/tree', '/report', '/dashboard',
+]
 
 function isFrappePath(path: string): boolean {
   return FRAPPE_PATHS.some(p => path === p || path.startsWith(p + '/'))
