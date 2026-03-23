@@ -1,6 +1,6 @@
 {
   "name": "@frappe-next/core",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "description": "Next.js App Router SDK for Frappe Framework — SSR, Server Actions, Middleware",
   "license": "MIT",
   "repository": {
@@ -24,40 +24,40 @@
     "typescript"
   ],
   "scripts": {
-    "build":   "rm -rf dist && tsup && node scripts/inject-directives.mjs",
+    "build": "rm -rf dist && tsup && node scripts/inject-directives.mjs",
     "prepare": "pnpm build",
-    "dev":     "tsup --watch",
+    "dev": "tsup --watch",
     "type-check": "tsc --noEmit"
   },
   "exports": {
     "./types": {
-      "types":   "./dist/types/index.d.ts",
-      "import":  "./dist/types/index.js",
+      "types": "./dist/types/index.d.ts",
+      "import": "./dist/types/index.js",
       "require": "./dist/types/index.cjs"
     },
     "./server": {
-      "types":   "./dist/server/index.d.ts",
-      "import":  "./dist/server/index.js",
+      "types": "./dist/server/index.d.ts",
+      "import": "./dist/server/index.js",
       "require": "./dist/server/index.cjs"
     },
     "./actions": {
-      "types":   "./dist/server/actions.d.ts",
-      "import":  "./dist/server/actions.js",
+      "types": "./dist/server/actions.d.ts",
+      "import": "./dist/server/actions.js",
       "require": "./dist/server/actions.cjs"
     },
     "./middleware": {
-      "types":   "./dist/middleware/index.d.ts",
-      "import":  "./dist/middleware/index.js",
+      "types": "./dist/middleware/index.d.ts",
+      "import": "./dist/middleware/index.js",
       "require": "./dist/middleware/index.cjs"
     },
     "./client": {
-      "types":   "./dist/client/index.d.ts",
-      "import":  "./dist/client/index.js",
+      "types": "./dist/client/index.d.ts",
+      "import": "./dist/client/index.js",
       "require": "./dist/client/index.cjs"
     },
     "./components": {
-      "types":   "./dist/components/index.d.ts",
-      "import":  "./dist/components/index.js",
+      "types": "./dist/components/index.d.ts",
+      "import": "./dist/components/index.js",
       "require": "./dist/components/index.cjs"
     }
   },
