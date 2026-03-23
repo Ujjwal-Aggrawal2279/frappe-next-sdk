@@ -3,7 +3,7 @@ import { cache }              from 'react'
 import { revalidateTag }      from 'next/cache'
 import { cookies, headers }   from 'next/headers'
 import type {
-  FrappeDoc, FrappeEnvelope, FrappeParams,
+  FrappeEnvelope, FrappeParams,
   FrappeFetchOptions, GetListArgs, BootData, FrappeFilter,
 } from '../types'
 
@@ -37,10 +37,11 @@ function requestSignal(): AbortSignal {
 
 async function buildSessionHeaders(): Promise<Record<string, string>> {
   try {
-    const jar  = await cookies()
-    const sid  = jar.get('sid')?.value
-    const csrf = jar.get('csrf_token')?.value
-    const out: Record<string, string> = {}
+    const jar      = await cookies()
+    const sid      = jar.get('sid')?.value
+    const csrf     = jar.get('csrf_token')?.value
+    const siteName = process.env.FRAPPE_SITE_NAME ?? process.env.NEXT_PUBLIC_FRAPPE_SITE ?? 'site1.localhost'
+    const out: Record<string, string> = { 'X-Frappe-Site-Name': siteName }
     if (sid && sid !== 'Guest') out['Cookie']              = `sid=${sid}`
     if (csrf)                   out['X-Frappe-CSRF-Token'] = csrf
     return out
