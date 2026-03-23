@@ -138,9 +138,12 @@ NEXT_PUBLIC_FRAPPE_SITE=site1.localhost
 |--------|-------------|
 | `frappeGet<T>(method, params?, options?)` | GET `/api/method/<method>` with session cookie forwarding |
 | `frappePost<T>(method, body?, options?)` | POST — prefers API key auth, falls back to session |
-| `getDoc<T>(doctype, name, options?)` | Fetch a single document |
+| `getDoc<T>(doctype, name, options?)` | Fetch a single document — per-request deduplicated via `React.cache()` |
+| `getDocOrNull<T>(doctype, name, options?)` | Same as `getDoc` but returns `null` on 404 |
 | `getList<T>(doctype, args?, options?)` | Fetch a filtered list |
 | `getCount(doctype, filters?)` | Count matching documents |
+| `revalidateDoc(doctype, name)` | Invalidate ISR cache for a document — call from Server Actions after mutations |
+| `revalidateList(doctype)` | Invalidate ISR cache for a list |
 | `getFrappeBootData()` | Returns `{ user, csrfToken, siteName }` — zero extra Frappe calls |
 | `fetchCsrfToken` | `React.cache()` memoized CSRF token fetcher |
 | `FrappeApiError` / `FrappeAuthError` / `FrappeNotFoundError` | Typed error classes |
@@ -157,6 +160,7 @@ NEXT_PUBLIC_FRAPPE_SITE=site1.localhost
 |--------|-------------|
 | `frappeClientGet<T>(method, params?)` | Browser fetch — credentials: include, no CSRF needed |
 | `frappeClientPost<T>(method, body?)` | Browser fetch — reads `window.csrf_token` automatically |
+| `useFrappeRouter()` | Smart router — `navigate(path)` auto-picks Next.js router vs `window.location` based on path ownership. Also exposes `toDesk(module?)` and `toDoc(doctype, name?)` |
 
 ### `@frappe-next/core/actions`
 
