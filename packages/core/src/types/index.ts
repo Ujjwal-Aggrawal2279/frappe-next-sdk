@@ -26,9 +26,9 @@ export type FrappeParams = Record<string, string | number | boolean | null | und
 export type FrappeFilter = [string, string, unknown]
 
 export interface GetListArgs {
-  fields?:      string[]
-  filters?:     FrappeFilter[]
-  or_filters?:  FrappeFilter[]
+  fields?:      readonly string[]
+  filters?:     readonly FrappeFilter[]
+  or_filters?:  readonly FrappeFilter[]
   limit?:       number
   limit_start?: number
   order_by?:    string

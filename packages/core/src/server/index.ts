@@ -3,7 +3,7 @@ import { cache }              from 'react'
 import { revalidateTag }      from 'next/cache'
 import { cookies, headers }   from 'next/headers'
 import type {
-  FrappeEnvelope, FrappeParams,
+  FrappeEnvelope, FrappeParams, FrappeDoc,
   FrappeFetchOptions, GetListArgs, BootData, FrappeFilter,
 } from '../types'
 
@@ -173,6 +173,21 @@ export async function getDocOrNull<T>(
   }
 }
 
+// Overload 1 — fields specified: return type is narrowed to Pick<T, fields[number]>
+export function getList<T, const F extends ReadonlyArray<keyof T & string>>(
+  doctype:  string,
+  args:     Omit<GetListArgs, 'fields'> & { fields: F },
+  options?: FrappeFetchOptions,
+): Promise<Pick<T, F[number]>[]>
+
+// Overload 2 — no fields (or loosely-typed T): return full T[]
+export function getList<T = FrappeDoc>(
+  doctype:  string,
+  args?:    GetListArgs,
+  options?: FrappeFetchOptions,
+): Promise<T[]>
+
+// Implementation
 export async function getList<T>(
   doctype:  string,
   args:     GetListArgs = {},
