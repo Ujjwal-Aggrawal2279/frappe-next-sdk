@@ -302,6 +302,95 @@ export function createFrappeClient<
   })
 }
 
+// ─── Fine-grained Field Access ────────────────────────────────────────────────
+// Fetch a single field value without loading the full document.
+// 10× faster than getDoc() when you only need one field.
+//
+// Usage:
+//   const status = await getValue("Sales Order", "SO-0001", "status")
+//   const title  = await getValue("Customer", "CUST-001", ["name", "customer_name"])
+
+export async function getValue<T = unknown>(
+  doctype:   string,
+  name:      string,
+  fieldname: string | string[],
+  options?:  FrappeFetchOptions,
+): Promise<T> {
+  return frappeGet<T>(
+    'frappe.client.get_value',
+    {
+      doctype,
+      filters:   JSON.stringify({ name }),
+      fieldname: JSON.stringify(fieldname),
+      as_dict:   1,
+    },
+    options,
+  )
+}
+
+// Fetch a field from a Single DocType (global settings doc).
+//
+// Usage:
+//   const siteTitle = await getSingleValue("Website Settings", "title")
+
+export async function getSingleValue<T = unknown>(
+  doctype: string,
+  field:   string,
+  options?: FrappeFetchOptions,
+): Promise<T> {
+  return frappeGet<T>(
+    'frappe.client.get_single_value',
+    { doctype, field },
+    options,
+  )
+}
+
+// ─── Permission Check ─────────────────────────────────────────────────────────
+// Check if the current session user has a specific permission on a document.
+// Use in Server Components to conditionally render actions.
+//
+// Usage:
+//   if (!(await hasPermission("Sales Order", "SO-0001", "submit"))) {
+//     redirect("/403")
+//   }
+
+export type FrappePermType = 'read' | 'write' | 'create' | 'delete' | 'submit' | 'cancel' | 'report'
+
+export async function hasPermission(
+  doctype:  string,
+  name:     string,
+  permType: FrappePermType = 'read',
+  options?: FrappeFetchOptions,
+): Promise<boolean> {
+  const result = await frappeGet<{ has_permission: 0 | 1 }>(
+    'frappe.client.has_permission',
+    { doctype, docname: name, perm_type: permType },
+    options,
+  )
+  return result.has_permission === 1
+}
+
+// ─── Run Document Method ──────────────────────────────────────────────────────
+// Trigger a whitelisted controller method on a specific document.
+// Equivalent to clicking a button action in Frappe Desk.
+//
+// Usage:
+//   const pickList = await runDocMethod("Sales Order", "SO-0001", "create_pick_list")
+
+export async function runDocMethod<T = unknown>(
+  doctype: string,
+  name:    string,
+  method:  string,
+  args?:   Record<string, unknown>,
+  options?: FrappeFetchOptions,
+): Promise<T> {
+  return frappePost<T>(
+    'frappe.desk.form.utils.run_onload',
+    { dt: doctype, dn: name, method, arg: JSON.stringify(args ?? {}) },
+    options,
+  )
+}
+
 // ─── ISR Cache Invalidation ───────────────────────────────────────────────────
 // Call from Server Actions after mutations to invalidate Next.js ISR cache.
 // Pairs with the cache tags set by getDoc and getList.

@@ -335,3 +335,205 @@ export function useAction<TInput, TOutput>(
 
   return { execute, data, isPending, error, reset }
 }
+
+// ─── useFrappeFileUpload ──────────────────────────────────────────────────────
+// Upload a file to Frappe with real-time progress tracking via XHR.
+// Uses the native XHR upload API — no extra dependencies.
+// Optionally attach the file to a specific document + field.
+//
+// Usage:
+//   const { upload, isUploading, progress, error } = useFrappeFileUpload()
+//
+//   <input type="file" onChange={e => upload(e.target.files[0])} />
+//   {isUploading && <progress value={progress} max={100} />}
+//
+//   // Attach directly to a document:
+//   upload(file, { doctype: "Sales Order", docname: "SO-0001", isPrivate: true })
+
+export interface FrappeFile {
+  name:       string
+  file_name:  string
+  /** Public URL to access the file via the browser */
+  file_url:   string
+  is_private: 0 | 1
+  file_size:  number
+}
+
+export interface UseFileUploadOptions {
+  doctype?:   string
+  docname?:   string
+  fieldname?: string
+  folder?:    string
+  /** Store the file as private (only accessible to logged-in users). Default: false */
+  isPrivate?: boolean
+}
+
+export interface UseFileUploadResult {
+  /** Upload a File object. Resolves to the Frappe file record on success. */
+  upload:      (file: File, options?: UseFileUploadOptions) => Promise<FrappeFile>
+  isUploading: boolean
+  /** Upload progress 0–100 */
+  progress:    number
+  error:       Error | null
+  reset:       () => void
+}
+
+export function useFrappeFileUpload(): UseFileUploadResult {
+  const [isUploading, setIsUploading] = useState(false)
+  const [progress,    setProgress]    = useState(0)
+  const [error,       setError]       = useState<Error | null>(null)
+  // Abort any in-progress upload on unmount
+  const xhrRef = useRef<XMLHttpRequest | null>(null)
+
+  useEffect(() => () => { xhrRef.current?.abort() }, [])
+
+  const upload = useCallback((
+    file:    File,
+    options: UseFileUploadOptions = {},
+  ): Promise<FrappeFile> => {
+    setIsUploading(true)
+    setProgress(0)
+    setError(null)
+
+    return new Promise<FrappeFile>((resolve, reject) => {
+      const formData = new FormData()
+      formData.append('file',       file, file.name)
+      formData.append('is_private', options.isPrivate ? '1' : '0')
+      if (options.doctype)   formData.append('doctype',   options.doctype)
+      if (options.docname)   formData.append('docname',   options.docname)
+      if (options.fieldname) formData.append('fieldname', options.fieldname)
+      if (options.folder)    formData.append('folder',    options.folder)
+
+      const xhr = new XMLHttpRequest()
+      xhrRef.current = xhr
+
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) setProgress(Math.round((e.loaded / e.total) * 100))
+      }
+
+      xhr.onload = () => {
+        setIsUploading(false)
+        xhrRef.current = null
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            const body = JSON.parse(xhr.responseText) as { message: FrappeFile }
+            setProgress(100)
+            resolve(body.message)
+          } catch {
+            const err = new Error('Invalid upload response')
+            setError(err); reject(err)
+          }
+        } else {
+          const err = new Error(`Upload failed: HTTP ${xhr.status}`)
+          setError(err); reject(err)
+        }
+      }
+
+      xhr.onerror = () => {
+        setIsUploading(false)
+        xhrRef.current = null
+        const err = new Error('Network error during upload')
+        setError(err); reject(err)
+      }
+
+      xhr.onabort = () => {
+        setIsUploading(false)
+        xhrRef.current = null
+        reject(new Error('Upload cancelled'))
+      }
+
+      xhr.open('POST', '/api/method/upload_file')
+      xhr.setRequestHeader('X-Frappe-CSRF-Token', readCsrfToken())
+      xhr.withCredentials = true
+      xhr.send(formData)
+    })
+  }, [])
+
+  const reset = useCallback(() => {
+    xhrRef.current?.abort()
+    setIsUploading(false)
+    setProgress(0)
+    setError(null)
+  }, [])
+
+  return { upload, isUploading, progress, error, reset }
+}
+
+// ─── useSearchLink ────────────────────────────────────────────────────────────
+// Debounced autocomplete hook for Frappe Link fields.
+// Calls frappe.desk.search.search_link with 300ms debounce.
+// Drop-in for any search-as-you-type input that resolves a DocType name.
+//
+// Usage:
+//   const { results, search, isLoading } = useSearchLink("Customer")
+//
+//   <input onChange={e => search(e.target.value)} />
+//   {results.map(r => <div key={r.value}>{r.label ?? r.value}</div>)}
+
+export interface SearchLinkResult {
+  value:        string
+  label?:       string
+  description?: string
+}
+
+export interface UseSearchLinkOptions {
+  filters?:    Record<string, unknown>
+  pageLength?: number
+}
+
+export interface UseSearchLinkResult {
+  results:   SearchLinkResult[]
+  /** Call this with the current input value to trigger a search. */
+  search:    (query: string) => void
+  isLoading: boolean
+  /** Clear results (e.g. on input blur). */
+  clear:     () => void
+}
+
+export function useSearchLink(
+  doctype: string,
+  options?: UseSearchLinkOptions,
+): UseSearchLinkResult {
+  const [results,   setResults]   = useState<SearchLinkResult[]>([])
+  const [isLoading, setIsLoading] = useState(false)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Stable serialised options key for dependency comparison
+  const optsKey = JSON.stringify(options)
+
+  useEffect(() => () => {
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+  }, [])
+
+  const search = useCallback((query: string) => {
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    if (!query.trim()) { setResults([]); return }
+
+    debounceRef.current = setTimeout(async () => {
+      setIsLoading(true)
+      try {
+        const opts: UseSearchLinkOptions = JSON.parse(optsKey) as UseSearchLinkOptions
+        const params: Record<string, unknown> = {
+          doctype,
+          txt:         query,
+          page_length: opts.pageLength ?? 10,
+        }
+        if (opts.filters) params.filters = JSON.stringify(opts.filters)
+
+        const data = await frappeClientGet<SearchLinkResult[]>(
+          'frappe.desk.search.search_link',
+          params as Record<string, string | number | boolean>,
+        )
+        setResults(Array.isArray(data) ? data : [])
+      } catch {
+        setResults([])
+      } finally {
+        setIsLoading(false)
+      }
+    }, 300)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [doctype, optsKey])
+
+  const clear = useCallback(() => setResults([]), [])
+
+  return { results, search, isLoading, clear }
+}
