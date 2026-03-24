@@ -100,10 +100,12 @@ export async function submitDoc(
 ): Promise<ActionResult<{ name: string; docstatus: 1 }>> {
   const base = resolveBaseUrl()
   try {
+    // frappe.client.submit loads the doc from DB via {doctype, name} and calls doc.submit().
+    // Do NOT pass docstatus — Frappe sets that itself during submit.
     const res = await fetch(`${base}/api/method/frappe.client.submit`, {
       method:  'POST',
       headers: buildApiKeyHeaders(),
-      body:    JSON.stringify({ doc: { doctype, name, docstatus: 1 } }),
+      body:    JSON.stringify({ doc: { doctype, name } }),
     })
     if (!res.ok) return { ok: false, error: await parseError(res), status: res.status }
     const { message } = await res.json() as { message: { name: string; docstatus: 1 } }
@@ -161,7 +163,7 @@ export async function deleteDoc(
 
 export async function bulkInsert<T extends Record<string, unknown>>(
   docs: Partial<T & { doctype: string }>[],
-): Promise<ActionResult<T[]>> {
+): Promise<ActionResult<string[]>> {
   const base = resolveBaseUrl()
   if (docs.length > 200) {
     return { ok: false, error: 'bulkInsert: Frappe limits insert_many to 200 documents per call.' }
@@ -173,7 +175,8 @@ export async function bulkInsert<T extends Record<string, unknown>>(
       body:    JSON.stringify({ docs }),
     })
     if (!res.ok) return { ok: false, error: await parseError(res), status: res.status }
-    const { message } = await res.json() as { message: T[] }
+    // frappe.client.insert_many returns list[str] — the created document names, not full docs.
+    const { message } = await res.json() as { message: string[] }
     return { ok: true, data: message }
   } catch (e) {
     return { ok: false, error: String(e) }

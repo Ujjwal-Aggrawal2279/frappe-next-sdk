@@ -303,39 +303,56 @@ export function createFrappeClient<
 }
 
 // ─── Fine-grained Field Access ────────────────────────────────────────────────
-// Fetch a single field value without loading the full document.
-// 10× faster than getDoc() when you only need one field.
+// Fetch one field or a set of fields without loading the entire document.
+// Significantly faster than getDoc() when only specific values are needed.
 //
-// Usage:
+// Single field — returns the scalar value:
 //   const status = await getValue("Sales Order", "SO-0001", "status")
-//   const title  = await getValue("Customer", "CUST-001", ["name", "customer_name"])
+//   // → "Draft" | "Submitted" | …
+//
+// Multiple fields — returns a typed partial:
+//   const info = await getValue("Customer", "CUST-001", ["customer_name", "territory"] as const)
+//   // → { customer_name: string; territory: string }
 
-export async function getValue<T = unknown>(
+export function getValue<T = unknown>(
   doctype:   string,
   name:      string,
-  fieldname: string | string[],
+  fieldname: string,
   options?:  FrappeFetchOptions,
-): Promise<T> {
-  return frappeGet<T>(
+): Promise<T>
+
+export function getValue<const F extends readonly string[]>(
+  doctype:   string,
+  name:      string,
+  fieldname: F,
+  options?:  FrappeFetchOptions,
+): Promise<Record<F[number], unknown>>
+
+export function getValue(
+  doctype:   string,
+  name:      string,
+  fieldname: string | readonly string[],
+  options?:  FrappeFetchOptions,
+): Promise<unknown> {
+  return frappeGet<unknown>(
     'frappe.client.get_value',
     {
       doctype,
       filters:   JSON.stringify({ name }),
       fieldname: JSON.stringify(fieldname),
-      as_dict:   1,
     },
     options,
   )
 }
 
-// Fetch a field from a Single DocType (global settings doc).
+// Fetch a field from a Single DocType (e.g. global settings docs).
 //
 // Usage:
-//   const siteTitle = await getSingleValue("Website Settings", "title")
+//   const title = await getSingleValue("Website Settings", "title")
 
 export async function getSingleValue<T = unknown>(
-  doctype: string,
-  field:   string,
+  doctype:  string,
+  field:    string,
   options?: FrappeFetchOptions,
 ): Promise<T> {
   return frappeGet<T>(
@@ -346,13 +363,11 @@ export async function getSingleValue<T = unknown>(
 }
 
 // ─── Permission Check ─────────────────────────────────────────────────────────
-// Check if the current session user has a specific permission on a document.
-// Use in Server Components to conditionally render actions.
+// Returns true if the current session user holds the requested permission.
+// Run in Server Components to guard actions/UI before they reach the client.
 //
 // Usage:
-//   if (!(await hasPermission("Sales Order", "SO-0001", "submit"))) {
-//     redirect("/403")
-//   }
+//   if (!(await hasPermission("Sales Order", "SO-0001", "submit"))) redirect("/403")
 
 export type FrappePermType = 'read' | 'write' | 'create' | 'delete' | 'submit' | 'cancel' | 'report'
 
@@ -362,31 +377,33 @@ export async function hasPermission(
   permType: FrappePermType = 'read',
   options?: FrappeFetchOptions,
 ): Promise<boolean> {
-  const result = await frappeGet<{ has_permission: 0 | 1 }>(
+  // frappe.client.has_permission returns a Python bool → JSON true / false
+  const result = await frappeGet<boolean>(
     'frappe.client.has_permission',
     { doctype, docname: name, perm_type: permType },
     options,
   )
-  return result.has_permission === 1
+  return result === true
 }
 
 // ─── Run Document Method ──────────────────────────────────────────────────────
 // Trigger a whitelisted controller method on a specific document.
-// Equivalent to clicking a button action in Frappe Desk.
+// Equivalent to clicking a custom button action inside Frappe Desk.
 //
 // Usage:
-//   const pickList = await runDocMethod("Sales Order", "SO-0001", "create_pick_list")
+//   await runDocMethod("Sales Order", "SO-0001", "create_pick_list")
+//   const invoice = await runDocMethod<SalesInvoice>("Sales Order", "SO-0001", "make_sales_invoice")
 
 export async function runDocMethod<T = unknown>(
-  doctype: string,
-  name:    string,
-  method:  string,
-  args?:   Record<string, unknown>,
+  doctype:  string,
+  name:     string,
+  method:   string,
+  args?:    Record<string, unknown>,
   options?: FrappeFetchOptions,
 ): Promise<T> {
   return frappePost<T>(
-    'frappe.desk.form.utils.run_onload',
-    { dt: doctype, dn: name, method, arg: JSON.stringify(args ?? {}) },
+    'frappe.desk.form.utils.run_doc_method',
+    { dt: doctype, dn: name, method, args: JSON.stringify(args ?? {}) },
     options,
   )
 }

@@ -162,24 +162,47 @@ export function useFrappeDoc<T>(
   const [isLoading, setIsLoading] = useState(true)
   const [error,     setError]     = useState<Error | null>(null)
 
-  const fetch = useCallback(async () => {
+  // Stable ref for the latest doc value — keeps `update` out of the dep array
+  // so it never triggers downstream useEffect([update]) re-runs.
+  const docRef = useRef<T | null>(null)
+  docRef.current = doc
+
+  const fetch = useCallback(async (signal?: AbortSignal) => {
     setIsLoading(true)
     setError(null)
     try {
-      const data = await frappeClientGet<T>('frappe.client.get', { doctype, name })
-      setDoc(data)
+      const url = new URL('/api/method/frappe.client.get', window.location.origin)
+      url.searchParams.set('doctype', doctype)
+      url.searchParams.set('name', name)
+      const res = await window.fetch(url.toString(), { credentials: 'include', signal })
+      if (res.ok) {
+        const { message } = await res.json() as { message: T }
+        setDoc(message)
+      } else {
+        throw new Error(`Frappe ${res.status}: frappe.client.get`)
+      }
     } catch (e) {
+      // AbortError is not a real error — swallow it silently
+      if (e instanceof DOMException && e.name === 'AbortError') return
       setError(e instanceof Error ? e : new Error(String(e)))
     } finally {
       setIsLoading(false)
     }
   }, [doctype, name])
 
-  useEffect(() => { fetch() }, [fetch])
+  useEffect(() => {
+    const ctrl = new AbortController()
+    fetch(ctrl.signal)
+    // Cleanup: cancel the in-flight request when deps change or component unmounts.
+    // This prevents stale responses from overwriting newer state (React Strict Mode safe).
+    return () => ctrl.abort()
+  }, [fetch])
+
+  const mutate = useCallback(() => { fetch() }, [fetch])
 
   const update = useCallback(async (changes: Partial<T>) => {
-    const prev = doc
-    // Optimistic — reflect change immediately
+    const prev = docRef.current
+    // Optimistic — reflect the change in UI immediately
     setDoc(curr => curr ? { ...curr, ...changes } : curr)
     try {
       const confirmed = await frappeClientPost<T>(
@@ -188,12 +211,14 @@ export function useFrappeDoc<T>(
       )
       setDoc(confirmed)
     } catch (e) {
-      setDoc(prev)  // Rollback
+      // Rollback to the server-confirmed state before the optimistic update
+      setDoc(prev)
       throw e instanceof Error ? e : new Error(String(e))
     }
-  }, [doc, doctype, name])
+  // doctype + name are the only stable identifiers needed — docRef holds latest doc
+  }, [doctype, name])
 
-  return { doc, isLoading, error, mutate: fetch, update }
+  return { doc, isLoading, error, mutate, update }
 }
 
 // ─── useFrappeList ────────────────────────────────────────────────────────────
@@ -235,10 +260,12 @@ export function useFrappeList<T>(
   const [isLoading, setIsLoading] = useState(true)
   const [error,     setError]     = useState<Error | null>(null)
 
-  // Stable dependency key — avoids re-fetching on every render when args is inline
+  // Serialise args once per render for stable dep comparison.
+  // JSON.stringify of identical args always produces the same string,
+  // so inline objects like { filters: [...] } don't cause infinite loops.
   const argsKey = JSON.stringify(args)
 
-  const fetch = useCallback(async () => {
+  const fetch = useCallback(async (signal?: AbortSignal) => {
     setIsLoading(true)
     setError(null)
     try {
@@ -249,29 +276,45 @@ export function useFrappeList<T>(
         limit       = 20,
         limit_start = 0,
         order_by    = 'modified desc',
-      } = args ?? {}
+      } = (JSON.parse(argsKey) as GetListArgs | undefined) ?? {}
 
-      const data = await frappeClientGet<T[]>('frappe.client.get_list', {
-        doctype,
-        fields:            JSON.stringify(fields),
-        filters:           JSON.stringify(filters),
-        or_filters:        JSON.stringify(or_filters),
-        limit_page_length: limit,
-        limit_start,
-        order_by,
-      })
-      setList(data)
+      const url = new URL('/api/method/frappe.client.get_list', window.location.origin)
+      url.searchParams.set('doctype',          doctype)
+      url.searchParams.set('fields',           JSON.stringify(fields))
+      url.searchParams.set('filters',          JSON.stringify(filters))
+      url.searchParams.set('or_filters',       JSON.stringify(or_filters))
+      url.searchParams.set('limit_page_length', String(limit))
+      url.searchParams.set('limit_start',      String(limit_start))
+      url.searchParams.set('order_by',         order_by)
+
+      const res = await window.fetch(url.toString(), { credentials: 'include', signal })
+      if (res.ok) {
+        const { message } = await res.json() as { message: T[] }
+        setList(message)
+      } else {
+        throw new Error(`Frappe ${res.status}: frappe.client.get_list`)
+      }
     } catch (e) {
+      if (e instanceof DOMException && e.name === 'AbortError') return
       setError(e instanceof Error ? e : new Error(String(e)))
     } finally {
       setIsLoading(false)
     }
+  // argsKey is the stable serialised proxy for args
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [doctype, argsKey])
 
-  useEffect(() => { fetch() }, [fetch])
+  useEffect(() => {
+    const ctrl = new AbortController()
+    fetch(ctrl.signal)
+    // Abort the previous request whenever doctype or args change — prevents
+    // a slow earlier request from overwriting the result of a faster later one.
+    return () => ctrl.abort()
+  }, [fetch])
 
-  return { list, isLoading, error, mutate: fetch }
+  const mutate = useCallback(() => { fetch() }, [fetch])
+
+  return { list, isLoading, error, mutate }
 }
 
 // ─── useAction ────────────────────────────────────────────────────────────────
